@@ -36,8 +36,7 @@ SUB_NAMES = [name for values in SUB_CATEGORIES.values() for name in values]
 # Bot internal settings
 token = os.environ['TELEGRAM_TOKEN']
 base_url = 'https://api.telegram.org/bot' + token
-HEROKU = os.environ.get('HEROKU', False
-                        )
+HEROKU = os.environ.get('HEROKU', False)
 
 bot = telebot.TeleBot(token)
 USERS = dict()
