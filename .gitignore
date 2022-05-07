@@ -1,3 +1,5 @@
 settings.txt
 internet-bot.png
 venv
+.idea
+__pycache__
