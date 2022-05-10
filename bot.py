@@ -1,19 +1,20 @@
 import telebot
 from telebot import types
 from quiz import *
-import html
-from collections import defaultdict
 from utils import *
+import html
 import os
+import json
 
-# TODO Save state
-# TODO Show high scores
+
 # Commands for bot
-COMMANDS = ['quit', 'cat_ch', 'dif_ch']
+COMMANDS = ['quit', 'cat_ch', 'dif_ch', 'results', 'hscores']
 BOT_COMMANDS = [
     types.BotCommand('quit', 'Закончить текущий квиз.'),
     types.BotCommand('cat_ch', 'Сменить категорию вопросов.'),
-    types.BotCommand('dif_ch', 'Сменить сложность вопросов.')
+    types.BotCommand('dif_ch', 'Сменить сложность вопросов.'),
+    types.BotCommand('results', 'Показать результаты за все время.'),
+    types.BotCommand('hscores', 'Список лучших результатов.')
 ]
 
 # Stickers id
@@ -36,7 +37,9 @@ SUB_NAMES = [name for values in SUB_CATEGORIES.values() for name in values]
 # Bot internal settings
 token = os.environ['TELEGRAM_TOKEN']
 base_url = 'https://api.telegram.org/bot' + token
+
 HEROKU = os.environ.get('HEROKU', False)
+BEST_RESULTS_NUMBER = 3
 
 bot = telebot.TeleBot(token)
 USERS = dict()
@@ -46,6 +49,36 @@ bot.set_my_commands(BOT_COMMANDS)
 menu_button = types.MenuButtonCommands('commands')
 bot.set_chat_menu_button(menu_button=menu_button)
 
+
+def save_users(user):
+    """
+    Function for saving to json and updating USERS dictionary
+    :param user: user object for updating USERS dictionary. Needs to be specified because user object is not mutated
+    but changed during serialization
+    :return:
+    """
+    if not HEROKU:
+        USERS.update({user.id: user})
+        with open('data.json', 'w', encoding='utf-8') as file:
+            data = {key: user.to_json() for key, user in USERS.items()}
+            json.dump(data, file)
+
+
+def load_users(key):
+    """
+    Function for loading user object by specified user id
+    :param key: user id
+    :return:
+    """
+    if not HEROKU:
+        with open('data.json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            restored_data = {int(key): decode_user(value) for key, value in data.items()}
+            return restored_data.get(key)
+    else:
+        return USERS.get(key)
+
+
 # @bot.message_handler(content_types=['sticker'])
 # def helper(message):
 #     print(message.text, message.sticker)
@@ -53,14 +86,20 @@ bot.set_chat_menu_button(menu_button=menu_button)
 
 @bot.message_handler(commands=COMMANDS)
 def command(message):
+    """
+    Handler for commands
+    :param message:
+    :return:
+    """
     user_id = message.from_user.id
-    user = USERS.get(user_id)
+    user = load_users(user_id)
     if not user:
         user = prepare_user(message)
     if message.text == '/quit':
         bot.send_message(message.chat.id, 'Возвращаемся...', reply_markup=types.ReplyKeyboardRemove(selective=False))
         user.state = USER_STATES[1]
         message.text = '/start'
+        save_users(user)
         greeting(message, user)
     elif message.text == '/cat_ch':
         if user.state in USER_STATES[:3]:
@@ -70,6 +109,7 @@ def command(message):
             bot.send_message(message.chat.id, 'Возвращаемся...',
                              reply_markup=types.ReplyKeyboardRemove(selective=False))
             user.state = USER_STATES[3]
+            save_users(user)
             show_categories(message)
     elif message.text == '/dif_ch':
         if user.state in USER_STATES[:4]:
@@ -79,13 +119,44 @@ def command(message):
             bot.send_message(message.chat.id, 'Возвращаемся...',
                              reply_markup=types.ReplyKeyboardRemove(selective=False))
             user.state = USER_STATES[4]
+            save_users(user)
             process_difficulty(message)
+    elif message.text == '/results':
+        bot.send_message(message.chat.id, f'Верных ответов {user.correct_answers}, неверных - {user.incorrect_answers}.')
+    elif message.text == '/hscores':
+        bot.send_message(message.chat.id, show_highscores())
+
+
+def show_highscores():
+    """
+    Shows high scores based on difference between correct and incorrect answers. Displays minimum of existing or
+    specified in BEST_RESULTS_NUMBER users.
+    :return:
+    """
+    if not HEROKU:
+        with open('data.json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            all_users = {int(key): decode_user(value) for key, value in data.items()}
+    else:
+        all_users = USERS
+    users = [user for user in all_users.values()]
+    users.sort(key=lambda user: user.correct_answers-user.incorrect_answers, reverse=True)
+    best = ''
+    for i in range(min(BEST_RESULTS_NUMBER, len(users))):
+        best += f'{i+1}. {users[i].name}: {users[i].correct_answers} верных ответов' \
+                f', {users[i].incorrect_answers} неверных.\n'
+    return 'Список лучших результатов:\n' + best
 
 
 @bot.message_handler(func=lambda message: True)
 def main(message):
+    """
+    Main handler for our bot
+    :param message:
+    :return:
+    """
     user_id = message.from_user.id
-    user = USERS.get(user_id)
+    user = load_users(user_id)
     if not user:
         user = prepare_user(message)
         greeting(message, user)
@@ -109,11 +180,13 @@ def prepare_user(message):
     """
     user_id = message.from_user.id
     name = message.from_user.first_name
-    user = User(id=user_id, state=USER_STATES[0], name=name)
+    user = User(state=USER_STATES[0], name=name)
+    user.id = user_id
     pinned = bot.send_message(message.chat.id, 'Чат бот для квиза!')
     bot.pin_chat_message(message.chat.id, pinned.id)
     user.state = USER_STATES[1]
     USERS.update({user_id: user})
+    save_users(user)
     return user
 
 
@@ -128,6 +201,7 @@ def greeting(message, user):
         bot.send_message(message.chat.id, 'Здравствуйте, ' + message.from_user.first_name + '!')
         bot.send_message(message.chat.id, 'Хотите начать игру?')
         user.state = USER_STATES[2]
+        save_users(user)
     else:
         bot.reply_to(message, 'Введите /start для начала.')
 
@@ -148,9 +222,11 @@ def get_ready_to_play(message, user):
             raise
         show_categories(message)
         user.state = USER_STATES[3]
+        save_users(user)
     elif message.text.lower() == 'нет':
         bot.reply_to(message, 'Всего доброго!')
         user.state = USER_STATES[0]
+        save_users(user)
     else:
         bot.reply_to(message, 'Не понимаю.')
         bot.send_message(message.chat.id, 'Хотите начать игру? Ответьте да/нет.')
@@ -186,6 +262,7 @@ def get_category(message, user):
     if message.text.lower() in NESTED_CATEGORIES:
         show_categories(message, sub_cat=message.text.lower())
         user.sub_category = message.text.lower()
+        save_users(user)
     elif message.text in CATEGORIES + SUB_NAMES:
         sub = None if message.text in CATEGORIES else message.text
         category_name = message.text if not sub else user.sub_category.capitalize() + ': ' + message.text
@@ -193,6 +270,7 @@ def get_category(message, user):
         user.current_category = category_id
         bot.reply_to(message, 'Вы выбрали категорию ' + category_name + '.')
         user.state = USER_STATES[4]
+        save_users(user)
         process_difficulty(message)
     else:
         bot.reply_to(message, 'Не понимаю.')
@@ -238,6 +316,7 @@ def get_difficulty(message, user):
             user.current_question = question
             user.state = USER_STATES[5]
             process_question(message, question)
+            save_users(user)
     else:
         bot.reply_to(message, 'Не понимаю.')
 
@@ -293,6 +372,7 @@ def get_question(message, user):
         else:
             user.current_question = question_new
             process_question(message, question_new)
+            save_users(user)
     elif message.text in escaped_answers:
         user.incorrect_answers += 1
         if question.type == 'boolean':
@@ -315,6 +395,7 @@ def get_question(message, user):
         else:
             user.current_question = question_new
             process_question(message, question_new)
+            save_users(user)
     else:
         bot.reply_to(message, 'Не понимаю.')
 

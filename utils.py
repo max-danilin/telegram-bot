@@ -1,9 +1,11 @@
+from quiz import decode_question
+
+
 class User:
     def __init__(
-            self, id, state, name, token=None, current_category=None, sub_category=None,
-            current_difficulty='easy', current_question=None, correct_answers=0, incorrect_answers=0
+            self, state, name, token=None, current_category=None, sub_category=None,
+            current_difficulty='easy', current_question=None, correct_answers=0, incorrect_answers=0, id=None
     ):
-        self.id = id
         self.token = token
         self.state = state
         self.name = name
@@ -13,20 +15,30 @@ class User:
         self.current_question = current_question
         self.correct_answers = correct_answers
         self.incorrect_answers = incorrect_answers
+        self.id = id
 
     def to_json(self):
         question_json = self.current_question.json if self.current_question else None
         category = str(self.current_category) if self.current_category else None
         return {
-            str(self.id): {
-                'token': self.token,
-                'state': self.state,
-                'name': self.name,
-                'category': category,
-                'difficulty': self.current_difficulty,
-                'question': question_json
-            }
+            'token': self.token,
+            'state': self.state,
+            'name': self.name,
+            'current_category': category,
+            'current_difficulty': self.current_difficulty,
+            'current_question': question_json,
+            'sub_category': self.sub_category,
+            'correct_answers': self.correct_answers,
+            'incorrect_answers': self.incorrect_answers,
+            'id': self.id
         }
+
+
+def decode_user(user_json):
+    q_json = user_json['current_question']
+    user_json['current_question'] = decode_question(q_json)
+    user_json['current_category'] = int(user_json['current_category']) if user_json['current_category'] else None
+    return User(**user_json)
 
 
 def parse_categories(all_cat, nested_cat):

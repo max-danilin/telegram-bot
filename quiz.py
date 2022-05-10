@@ -12,6 +12,15 @@ class Question:  # TODO mb try dataclass
         self.json = None
 
 
+def decode_question(q_json):
+    if q_json is not None:
+        q = Question(**q_json)
+        q.json = q_json
+        return q
+    else:
+        return None
+
+
 class QuizAPIException(Exception):
     pass
 
