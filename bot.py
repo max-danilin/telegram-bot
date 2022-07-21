@@ -35,8 +35,7 @@ CATEGORIES, SUB_CATEGORIES = parse_categories(ALL_CATEGORIES, NESTED_CATEGORIES)
 SUB_NAMES = [name for values in SUB_CATEGORIES.values() for name in values]
 
 # Bot internal settings
-token = '5323165677:AAE328ErW_L4JaxblGcqANfExRHi-R73B2Y'
-# token = os.environ['TELEGRAM_TOKEN']
+token = os.environ['TELEGRAM_TOKEN']
 base_url = 'https://api.telegram.org/bot' + token
 
 HEROKU = os.environ.get('HEROKU', False)
