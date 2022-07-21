@@ -415,7 +415,5 @@ def get_question(message, user):
 
 if __name__ == '__main__':
     database.connect()
-    try:
-        bot.infinity_polling()
-    finally:
-        database.close()
+    bot.infinity_polling()
+
