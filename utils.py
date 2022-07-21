@@ -1,22 +1,20 @@
 from quiz import decode_question
 import psycopg2
+import os
 
 
-DATABASE_URL = '127.0.0.1'
-DATABASE_NAME = 'telegram_bot'
-DATABASE_USER = 'postgres'
-DATABASE_PASSWORD = '921404'
+DATABASE_URL = os.environ['DATABASE_URL']
+# DATABASE_NAME = 'telegram_bot'
+# DATABASE_USER = 'postgres'
+# DATABASE_PASSWORD = ''
 
 
 class Database:
     """
     Class for connecting to PostgreSQL database.
     """
-    def __init__(self, url: str, name: str, user: str, pwd: str):
+    def __init__(self, url: str):
         self.url = url
-        self.name = name
-        self.user = user
-        self.pwd = pwd
         self.conn = None
         self.cursor = None
 
@@ -24,7 +22,7 @@ class Database:
         """
         Make connection.
         """
-        self.conn = psycopg2.connect(dbname=self.name, user=self.user, password=self.pwd, host=self.url)
+        self.conn = psycopg2.connect(self.url)
         self.cursor = self.conn.cursor()
 
     def close(self):
@@ -35,7 +33,7 @@ class Database:
         self.conn.close()
 
 
-database = Database(url=DATABASE_URL, name=DATABASE_NAME, user=DATABASE_USER, pwd=DATABASE_PASSWORD)
+database = Database(DATABASE_URL)
 
 
 class User:
