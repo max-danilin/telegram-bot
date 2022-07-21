@@ -35,7 +35,8 @@ CATEGORIES, SUB_CATEGORIES = parse_categories(ALL_CATEGORIES, NESTED_CATEGORIES)
 SUB_NAMES = [name for values in SUB_CATEGORIES.values() for name in values]
 
 # Bot internal settings
-token = os.environ['TELEGRAM_TOKEN']
+token = '5323165677:AAE328ErW_L4JaxblGcqANfExRHi-R73B2Y'
+# token = os.environ['TELEGRAM_TOKEN']
 base_url = 'https://api.telegram.org/bot' + token
 
 HEROKU = os.environ.get('HEROKU', False)
@@ -50,18 +51,36 @@ menu_button = types.MenuButtonCommands('commands')
 bot.set_chat_menu_button(menu_button=menu_button)
 
 
+def create_user(user):
+    """
+    Creates user inside database.
+    :param user:
+    :return:
+    """
+    sql = '''
+    INSERT INTO users
+    (telegram_id, user_json)
+    VALUES (%s, %s);
+    '''
+    database.cursor.execute(sql, (user.id, json.dumps(user.to_json())))
+    database.conn.commit()
+
+
 def save_users(user):
     """
-    Function for saving to json and updating USERS dictionary
+    Function for saving to database and updating USERS dictionary
     :param user: user object for updating USERS dictionary. Needs to be specified because user object is not mutated
     but changed during serialization
     :return:
     """
-    if not HEROKU:
-        USERS.update({user.id: user})
-        with open('data.json', 'w', encoding='utf-8') as file:
-            data = {key: user.to_json() for key, user in USERS.items()}
-            json.dump(data, file)
+    USERS.update({user.id: user})
+    sql = '''
+    UPDATE users
+    SET user_json = %s
+    WHERE telegram_id = %s;
+    '''
+    database.cursor.execute(sql, (json.dumps(user.to_json()), user.id))
+    database.conn.commit()
 
 
 def load_users(key):
@@ -70,13 +89,13 @@ def load_users(key):
     :param key: user id
     :return:
     """
-    if not HEROKU:
-        with open('data.json', 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            restored_data = {int(key): decode_user(value) for key, value in data.items()}
-            return restored_data.get(key)
-    else:
-        return USERS.get(key)
+    if not USERS.get(key):
+        database.cursor.execute('SELECT * FROM users;')
+        users = database.cursor.fetchall()
+        for user in users:
+            decoded_user = decode_user(json.loads(user[1]))
+            USERS.update({decoded_user.id: decoded_user})
+    return USERS.get(key)
 
 
 # @bot.message_handler(content_types=['sticker'])
@@ -133,12 +152,7 @@ def show_highscores():
     specified in BEST_RESULTS_NUMBER users.
     :return:
     """
-    if not HEROKU:
-        with open('data.json', 'r', encoding='utf-8') as file:
-            data = json.load(file)
-            all_users = {int(key): decode_user(value) for key, value in data.items()}
-    else:
-        all_users = USERS
+    all_users = USERS
     users = [user for user in all_users.values()]
     users.sort(key=lambda user: user.correct_answers-user.incorrect_answers, reverse=True)
     best = ''
@@ -186,7 +200,7 @@ def prepare_user(message):
     bot.pin_chat_message(message.chat.id, pinned.id)
     user.state = USER_STATES[1]
     USERS.update({user_id: user})
-    save_users(user)
+    create_user(user)
     return user
 
 
@@ -400,4 +414,9 @@ def get_question(message, user):
         bot.reply_to(message, 'Не понимаю.')
 
 
-bot.infinity_polling()
+if __name__ == '__main__':
+    database.connect()
+    try:
+        bot.infinity_polling()
+    finally:
+        database.close()

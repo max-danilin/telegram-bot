@@ -1,4 +1,41 @@
 from quiz import decode_question
+import psycopg2
+
+
+DATABASE_URL = '127.0.0.1'
+DATABASE_NAME = 'telegram_bot'
+DATABASE_USER = 'postgres'
+DATABASE_PASSWORD = '921404'
+
+
+class Database:
+    """
+    Class for connecting to PostgreSQL database.
+    """
+    def __init__(self, url: str, name: str, user: str, pwd: str):
+        self.url = url
+        self.name = name
+        self.user = user
+        self.pwd = pwd
+        self.conn = None
+        self.cursor = None
+
+    def connect(self):
+        """
+        Make connection.
+        """
+        self.conn = psycopg2.connect(dbname=self.name, user=self.user, password=self.pwd, host=self.url)
+        self.cursor = self.conn.cursor()
+
+    def close(self):
+        """
+        Close connection.
+        """
+        self.cursor.close()
+        self.conn.close()
+
+
+database = Database(url=DATABASE_URL, name=DATABASE_NAME, user=DATABASE_USER, pwd=DATABASE_PASSWORD)
 
 
 class User:
@@ -16,6 +53,12 @@ class User:
         self.correct_answers = correct_answers
         self.incorrect_answers = incorrect_answers
         self.id = id
+
+    def __str__(self):
+        return f'User with id {self.id}, token {self.token}, name {self.name}. Current category is ' \
+               f'{self.current_category}, sub category - {self.sub_category}, difficulty - {self.current_difficulty}.' \
+               f'Current state is {self.state}, number of correct/incorrect answers: {self.correct_answers}/' \
+               f'{self.incorrect_answers}.'
 
     def to_json(self):
         question_json = self.current_question.json if self.current_question else None
