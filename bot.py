@@ -7,6 +7,12 @@ import os
 import json
 
 
+HEROKU = os.getenv('HEROKU', False)
+if not HEROKU:
+    from config import TOKEN
+else:
+    TOKEN = None
+
 # Commands for bot
 COMMANDS = ['quit', 'cat_ch', 'dif_ch', 'results', 'hscores']
 BOT_COMMANDS = [
@@ -35,10 +41,9 @@ CATEGORIES, SUB_CATEGORIES = parse_categories(ALL_CATEGORIES, NESTED_CATEGORIES)
 SUB_NAMES = [name for values in SUB_CATEGORIES.values() for name in values]
 
 # Bot internal settings
-token = os.environ['TELEGRAM_TOKEN']
+token = os.getenv('TELEGRAM_TOKEN', TOKEN)
 base_url = 'https://api.telegram.org/bot' + token
 
-# HEROKU = os.environ.get('HEROKU', False)
 BEST_RESULTS_NUMBER = 3
 
 bot = telebot.TeleBot(token)
@@ -95,11 +100,6 @@ def load_users(key):
             decoded_user = decode_user(json.loads(user[1]))
             USERS.update({decoded_user.id: decoded_user})
     return USERS.get(key)
-
-
-# @bot.message_handler(content_types=['sticker'])
-# def helper(message):
-#     print(message.text, message.sticker)
 
 
 @bot.message_handler(commands=COMMANDS)
@@ -415,5 +415,9 @@ def get_question(message, user):
 
 if __name__ == '__main__':
     database.connect()
-    bot.infinity_polling()
+    # bot.infinity_polling()
+    try:
+        bot.infinity_polling()
+    finally:
+        database.conn.close()
 

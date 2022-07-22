@@ -4,3 +4,5 @@ venv
 .idea
 __pycache__
 data.json
+config.py
+sql_create

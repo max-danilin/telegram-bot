@@ -2,19 +2,30 @@ from quiz import decode_question
 import psycopg2
 import os
 
+HEROKU = os.getenv('HEROKU', False)
 
-DATABASE_URL = os.environ['DATABASE_URL']
-# DATABASE_NAME = 'telegram_bot'
-# DATABASE_USER = 'postgres'
-# DATABASE_PASSWORD = ''
+if HEROKU:
+    DATABASE_URL = os.environ['DATABASE_URL']
+else:
+    from config import DATABASE_URL, DATABASE_NAME, DATABASE_PASSWORD, DATABASE_USER
 
 
 class Database:
     """
     Class for connecting to PostgreSQL database.
     """
-    def __init__(self, url: str):
+    def __init__(self, url: str, name: str = '', user: str = '', pwd: str = ''):
+        """
+        Initialize database
+        :param url: db url
+        :param name: db name
+        :param user: dn username
+        :param pwd: db username password
+        """
         self.url = url
+        self.name = name
+        self.user = user
+        self.pwd = pwd
         self.conn = None
         self.cursor = None
 
@@ -22,7 +33,10 @@ class Database:
         """
         Make connection.
         """
-        self.conn = psycopg2.connect(self.url)
+        if not HEROKU:
+            self.conn = psycopg2.connect(dbname=self.name, user=self.user, password=self.pwd, host=self.url)
+        else:
+            self.conn = psycopg2.connect(self.url)
         self.cursor = self.conn.cursor()
 
     def close(self):
@@ -33,10 +47,16 @@ class Database:
         self.conn.close()
 
 
-database = Database(DATABASE_URL)
+if HEROKU:
+    database = Database(DATABASE_URL)
+else:
+    database = Database(url=DATABASE_URL, name=DATABASE_NAME, user=DATABASE_USER, pwd=DATABASE_PASSWORD)
 
 
 class User:
+    """
+    Class for storing user's data.
+    """
     def __init__(
             self, state, name, token=None, current_category=None, sub_category=None,
             current_difficulty='easy', current_question=None, correct_answers=0, incorrect_answers=0, id=None
@@ -59,6 +79,10 @@ class User:
                f'{self.incorrect_answers}.'
 
     def to_json(self):
+        """
+        Prepares User object for converting to JSON format.
+        :return: json serializable dictionary
+        """
         question_json = self.current_question.json if self.current_question else None
         category = str(self.current_category) if self.current_category else None
         return {
@@ -76,6 +100,11 @@ class User:
 
 
 def decode_user(user_json):
+    """
+    Decodes dictionary from JSON to User object.
+    :param user_json: dict
+    :return: User
+    """
     q_json = user_json['current_question']
     user_json['current_question'] = decode_question(q_json)
     user_json['current_category'] = int(user_json['current_category']) if user_json['current_category'] else None
@@ -83,6 +112,12 @@ def decode_user(user_json):
 
 
 def parse_categories(all_cat, nested_cat):
+    """
+    Parse categories into main and sub ones.
+    :param all_cat: all categories
+    :param nested_cat: categories with sub categories
+    :return: tuple(cat, subcat)
+    """
     categories = []
     sub_categories = {key: [] for key in nested_cat}
     for category in all_cat:

@@ -1,7 +1,10 @@
 import requests
 
 
-class Question:  # TODO mb try dataclass
+class Question:
+    """
+    Class for storing questions to keep within user's profile.
+    """
     def __init__(self, category, type, difficulty, question, correct_answer, incorrect_answers):
         self.category = category
         self.type = type
@@ -13,6 +16,11 @@ class Question:  # TODO mb try dataclass
 
 
 def decode_question(q_json):
+    """
+    Decode Question object from dictionary from JSON.
+    :param q_json: dict
+    :return: Question | None
+    """
     if q_json is not None:
         q = Question(**q_json)
         q.json = q_json
@@ -30,6 +38,10 @@ class GetTokenException(Exception):
 
 
 def get_token():
+    """
+    Get Api token.
+    :return: token
+    """
     token_get_url = 'https://opentdb.com/api_token.php?command=request'
     response_token = requests.get(token_get_url)
     if response_token.ok:
@@ -40,6 +52,10 @@ def get_token():
 
 
 def get_categories():
+    """
+    Get available categories.
+    :return: list of categories
+    """
     categories_url = 'https://opentdb.com/api_category.php'
     response_category = requests.get(categories_url)
     if response_category.ok:
@@ -50,6 +66,9 @@ def get_categories():
 
 
 def ask_question(token, category, difficulty):
+    """
+    Get question from chosen category with given difficulty.
+    """
     base_url = 'https://opentdb.com/api.php?amount=1&category=' + category + '&difficulty=' + difficulty +\
                '&token=' + token
 
